@@ -14,9 +14,9 @@ const (
 	VERIFYTOKEN     = ""
 	PORT = 2102
 
-	DB_NAME=""
-	DB_USER=""
-	DB_PASS=""
+	DB_NAME="record_chatbot"
+	DB_USER="root"
+	DB_PASS="1"
 	MaxSample=102
 )
 
@@ -33,32 +33,42 @@ func (r Record) HandlePostback(bot *fbbot.Bot, pbk *fbbot.Postback)  {
 		if err != nil {
 			panic(err.Error()) // proper error handling instead of panic in your app
 		}
+
 		SampleId := 1 + GetStateOfUser(db,pbk.Sender.ID)
+		stmtInsAudio.Query(true,pbk.Sender.ID,SampleId)
 
-		if SampleId < MaxSample {
-			stmtInsAudio.Query(true,pbk.Sender.ID,SampleId)
+		//cap nhat trang thai cho user
+		stmtUpdateUserState , err := db.Prepare("UPDATE UserState SET LastSample = ? WHERE FbId = ? ")
+		if err != nil {
+			panic(err.Error()) // proper error handling instead of panic in your app
+		}
+		stmtUpdateUserState.Query(SampleId,pbk.Sender.ID)
+		//??? co nen dong statement o day khong?
+		stmtUpdateUserState.Close()
 
-			//cap nhat trang thai cho user
-			stmtUpdateUserState , err := db.Prepare("UPDATE UserState SET LastSample = ? WHERE FbId = ? ")
-			if err != nil {
-				panic(err.Error()) // proper error handling instead of panic in your app
-			}
-			stmtUpdateUserState.Query(SampleId,pbk.Sender.ID)
-			//??? co nen dong statement o day khong?
-			stmtUpdateUserState.Close()
-
-			nextsample := GetSampleOfUser( db , pbk.Sender.ID )
-			m1 :=fbbot.NewTextMessage(nextsample)
-			bot.Send(pbk.Sender,m1)
-		} else {
+		if SampleId == MaxSample {
 			goobye := "Bạn đã hoàn thành, xin chào bạn"
 			m := fbbot.NewTextMessage(goobye)
 			bot.Send(pbk.Sender,m)
+
+		} else {
+			nextsample := GetSampleOfUser( db , pbk.Sender.ID )
+
+			m1 :=fbbot.NewTextMessage(nextsample)
+			bot.Send(pbk.Sender,m1)
+			m4:=fbbot.NewTextMessage("....")
+			bot.Send(pbk.Sender,m4)
+			bot.Send(pbk.Sender,m4)
+			bot.Send(pbk.Sender,m4)
 		}
 	case "No":
 		sample := GetSampleOfUser(db,pbk.Sender.ID)
 		m := fbbot.NewTextMessage(sample)
 		bot.Send(pbk.Sender,m)
+		m4:=fbbot.NewTextMessage("....")
+		bot.Send(pbk.Sender,m4)
+		bot.Send(pbk.Sender,m4)
+		bot.Send(pbk.Sender,m4)
 
 	default:
 		log.Println("Switch case does not exist")
@@ -100,13 +110,18 @@ func ( record Record ) HandleMessage( bot *fbbot.Bot , msg *fbbot.Message ) {
 	db := <- dbchan
 	//if arrived messeger is text and user is new
 	if IsNewUser( msg , db ) && !isAudioMessage( msg ){
-		greeting := "xin chao!"
+
+		greeting := "Xin chào!"+msg.Sender.FirstName()+"Chúng tôi đang thực hiện một dự án thu thập dữ liệu ghi âm giọng nói và rất vui khi nhận được sự hợp tác của bạn"
 		m := fbbot.NewTextMessage(greeting)
 		bot.Send(msg.Sender,m)
 
-		tutorialmesseger :="huong dan"
+		tutorialmesseger :="Hướng dẫn: Bây h tôi sẽ gửi cho bạn một đoạn text, bạn hãy đọc và ghi âm rồi gửi chúng lại cho t ôi"
 		m1 := fbbot.NewTextMessage(tutorialmesseger)
 		bot.Send(msg.Sender,m1)
+
+		start:="Oki! Bây h chúng ta sẽ bắt đầu"
+		m2 := fbbot.NewTextMessage(start)
+		bot.Send(msg.Sender,m2)
 
 		stmtInsNewUser, err := db.Prepare("INSERT INTO UserState (Fbid,LastSample)VALUES( ?, ? )") // ? = placeholder
 		if err != nil {
@@ -119,10 +134,15 @@ func ( record Record ) HandleMessage( bot *fbbot.Bot , msg *fbbot.Message ) {
 		}
 
 		sample1 := GetSampleOfUser(db,msg.Sender.ID)
-		m2 := fbbot.NewTextMessage(sample1)
-		bot.Send(msg.Sender,m2)
+		m3 := fbbot.NewTextMessage(sample1)
+		bot.Send(msg.Sender,m3)
 
-		//add new user and state 0
+		m4:=fbbot.NewTextMessage("....")
+		bot.Send(msg.Sender,m4)
+		bot.Send(msg.Sender,m4)
+		bot.Send(msg.Sender,m4)
+
+
 
 	}else if isAudioMessage(msg) {
 		//luu database
@@ -144,9 +164,22 @@ func ( record Record ) HandleMessage( bot *fbbot.Bot , msg *fbbot.Message ) {
 		pkb.AddPostbackButton("Ghi âm lại","No")
 		bot.Send(msg.Sender,pkb)
 	}  else {
-		nextsample := GetSampleOfUser( db , msg.Sender.ID )
-		m1 :=fbbot.NewTextMessage(nextsample)
-		bot.Send(msg.Sender,m1)
+		us := GetStateOfUser(db,msg.Sender.ID)
+		sample1 := GetSampleOfUser(db,msg.Sender.ID)
+		if us == MaxSample {
+			m3 := fbbot.NewTextMessage("Bạn đã hoàn thành quá trình ghi âm!")
+			bot.Send(msg.Sender,m3)
+
+			m4 := fbbot.NewTextMessage("Cảm ơn bạn")
+			bot.Send(msg.Sender,m4)
+		} else {
+			m3 := fbbot.NewTextMessage(sample1)
+			bot.Send(msg.Sender,m3)
+			m4:=fbbot.NewTextMessage("....")
+			bot.Send(msg.Sender,m4)
+			bot.Send(msg.Sender,m4)
+			bot.Send(msg.Sender,m4)
+		}
 	}
 	dbchan <- db
 }
@@ -176,15 +209,20 @@ func GetSampleOfUser(db *sql.DB, FbId string) string {
 	var id int
 	stateofuser := GetStateOfUser(db,FbId)
 	id = stateofuser + 1
-	query := "Select * from InputText where Id= ?"
-	rows, err := db.Query(query,id)
-	if err != nil {
-		panic(err.Error()) // proper error handling instead of panic in your app
+	if id <= MaxSample {
+		query := "Select * from InputText where Id= ?"
+		rows, err := db.Query(query,id)
+		if err != nil {
+			panic(err.Error()) // proper error handling instead of panic in your app
+		}
+		for rows.Next(){
+			rows.Scan(&id,&sample)
+		}
+		return sample
+	} else {
+		return ""
 	}
-	for rows.Next(){
-		rows.Scan(&id,&sample)
-	}
-	return sample
+
 
 }
 
