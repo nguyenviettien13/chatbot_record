@@ -35,7 +35,6 @@ func (r Recorder) HandlePostback(bot *fbbot.Bot, msg *fbbot.Postback) {
 	default:
 		log.Println("Switch case does not exist")
 	}
-
 }
 
 type UserId string

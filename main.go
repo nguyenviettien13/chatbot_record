@@ -6,23 +6,65 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"time"
 	"fmt"
+	"log"
 )
 
 const (
-	PAGEACCESSTOKEN = "EAAEo7uCJDOEBAIM0NNK8LwfJ25YHOPkKqZCiVsCowsjMUdLUB2l0ABXTZCkZBIM5rFzzTmPvqsdxKmOBMl2P4ZAwxa5qe2Fgk1w6XF34SMOmvbzllwaN9HUIsObcxxBkikkp4ApNo0ceHOIgvhE25B3DiqBZBipgQskeDkBvOsZBWQTFuN8h6y"
-	VERIFYTOKEN     = "1234"
-	PORT = 8080
+	PAGEACCESSTOKEN = ""
+	VERIFYTOKEN     = ""
+	PORT = 2102
 
-	DB_NAME="recordchatbot"
+	DB_NAME="record_chatbot"
 	DB_USER="root"
 	DB_PASS="1"
+	MaxSample=102
 )
 
-type Record struct {
-
-}
-
 var dbchan =make(chan *sql.DB,1)
+
+type Record struct {}
+
+
+func (r Record) HandlePostback(bot *fbbot.Bot, pbk *fbbot.Postback)  {
+	db := <- dbchan
+	switch pbk.Payload {
+	case "Yes":
+		stmtInsAudio , err := db.Prepare("UPDATE Outputs  SET State = ?  WHERE FbId = ? AND SampleId = ?")
+		if err != nil {
+			panic(err.Error()) // proper error handling instead of panic in your app
+		}
+		SampleId := 1 + GetStateOfUser(db,pbk.Sender.ID)
+
+		if SampleId < MaxSample {
+			stmtInsAudio.Query(true,pbk.Sender.ID,SampleId)
+
+			//cap nhat trang thai cho user
+			stmtUpdateUserState , err := db.Prepare("UPDATE UserState SET LastSample = ? WHERE FbId = ? ")
+			if err != nil {
+				panic(err.Error()) // proper error handling instead of panic in your app
+			}
+			stmtUpdateUserState.Query(SampleId,pbk.Sender.ID)
+			//??? co nen dong statement o day khong?
+			stmtUpdateUserState.Close()
+
+			nextsample := GetSampleOfUser( db , pbk.Sender.ID )
+			m1 :=fbbot.NewTextMessage(nextsample)
+			bot.Send(pbk.Sender,m1)
+		} else {
+			goobye := "Bạn đã hoàn thành, xin chào bạn"
+			m := fbbot.NewTextMessage(goobye)
+			bot.Send(pbk.Sender,m)
+		}
+	case "No":
+		sample := GetSampleOfUser(db,pbk.Sender.ID)
+		m := fbbot.NewTextMessage(sample)
+		bot.Send(pbk.Sender,m)
+
+	default:
+		log.Println("Switch case does not exist")
+	}
+	dbchan <- db
+}
 
 func main()  {
 	//processing database
@@ -44,9 +86,12 @@ func main()  {
 	dbchan<-db
 	fmt.Println("added database channel")
 
-	var record Record
+
+	var r Record
 	bot := fbbot.New(PORT,VERIFYTOKEN,PAGEACCESSTOKEN)
-	bot.AddMessageHandler(record)
+	bot.AddMessageHandler(r)
+	bot.AddPostbackHandler(r)
+
 	bot.Run()
 }
 
@@ -88,43 +133,17 @@ func ( record Record ) HandleMessage( bot *fbbot.Bot , msg *fbbot.Message ) {
 		SampleId := 1 + GetStateOfUser(db,msg.Sender.ID)
 		stmtInsAudio.Query(msg.Sender.ID,msg.Sender.Gender(),SampleId,false,1,msg.Audios[0].URL,time.Now())
 		//send confirm messager
-		confirmmessager := "ban co muon gui audio : y/n"
-		m := fbbot.NewTextMessage(confirmmessager)
-		bot.Send(msg.Sender,m)
-	} else if msg.Text =="y" || msg.Text =="Y"  {
-		//cap nhat output
-		fmt.Println("confirm Y")
-		stmtInsAudio , err := db.Prepare("UPDATE Outputs  SET State = ?  WHERE FbId = ? AND SampleId = ?")
-		if err != nil {
-			panic(err.Error()) // proper error handling instead of panic in your app
-		}
-		SampleId := 1 + GetStateOfUser(db,msg.Sender.ID)
-		stmtInsAudio.Query(true,msg.Sender.ID,SampleId)
+		//confirmmessager := "ban co muon gui audio : y/n"
+		//m := fbbot.NewTextMessage(confirmmessager)
+		//bot.Send(msg.Sender,m)
 
-		//cap nhat trang thai cho user
-		stmtUpdateUserState , err := db.Prepare("UPDATE UserState SET LastSample = ? WHERE FbId = ? ")
-		if err != nil {
-			panic(err.Error()) // proper error handling instead of panic in your app
-		}
-		stmtUpdateUserState.Query(SampleId,msg.Sender.ID)
-		//??? co nen dong statement o day khong?
-		stmtUpdateUserState.Close()
-
-		nextsample := GetSampleOfUser( db , msg.Sender.ID )
-		m1 :=fbbot.NewTextMessage(nextsample)
-		bot.Send(msg.Sender,m1)
-
-	} else if msg.Text == "n" || msg.Text == "N"  {
-		fmt.Println("confirm N")
-		//gui lai text yeu cau doc lai
-		sample := GetSampleOfUser(db,msg.Sender.ID)
-		m := fbbot.NewTextMessage(sample)
-		bot.Send(msg.Sender,m)
-	} else {
-		next := "cau tiep theo 2: "
-		m := fbbot.NewTextMessage(next)
-		bot.Send(msg.Sender,m)
-
+		pkb :=fbbot.NewButtonMessage()
+		pkb.Text = "Bạn muốn ghi âm lại hay ghi âm câu tiếp theo"
+		pkb.Noti ="REGULAR"
+		pkb.AddPostbackButton("Câu tiếp theo","Yes")
+		pkb.AddPostbackButton("Ghi âm lại","No")
+		bot.Send(msg.Sender,pkb)
+	}  else {
 		nextsample := GetSampleOfUser( db , msg.Sender.ID )
 		m1 :=fbbot.NewTextMessage(nextsample)
 		bot.Send(msg.Sender,m1)
