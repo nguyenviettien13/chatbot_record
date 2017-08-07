@@ -14,9 +14,9 @@ const (
 	VERIFYTOKEN     = ""
 	PORT = 2102
 
-	DB_NAME="record_chatbot"
-	DB_USER="root"
-	DB_PASS="1"
+	DB_NAME=""
+	DB_USER=""
+	DB_PASS=""
 	MaxSample=102
 )
 
