@@ -1,0 +1,7 @@
+export PAGEACCESSTOKEN="EAAXu4QafGd8BALKqZADZA1eM08R4xCbeRGJZAKZBpEJQz3azPFqCfeSynZBaT3BKjJuaGeTD8mUBVU0av0Rb0F0iHgl6ZAlJzGZB8GHyqzvnSWcGM5UrewUyiLH0xUE5myHUO5Lk5EJdICLGFD7UDZBY9biZBwEvZAjbvHsgRXvx7C0knGspgnLgKb"
+export VERIFYTOKEN="neitteiv1234"
+export PORT=2102
+export DB_NAME="record_chatbot"
+export DB_USER="root"
+export DB_PASS="1"
+export MaxSample=3

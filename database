@@ -1,3 +1,7 @@
+
+CREATE DATABASE recordchatbot CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+
 +++ create table UserState( FbId varchar(100) not null, LastSample int not null, LastTime timestamp not null default current_timestamp, primary key (FbId) );
 
 +++ create table UserState( FbId varchar(100) not null, LastSample int not null, LastTime timestamp not null default current_timestamp, primary key (FbId) );
@@ -107,8 +111,4 @@ INSERT INTO     InputText (Id,Sample) Values(100  , "đóng màn hình khám b�
 INSERT INTO     InputText (Id,Sample) Values(101  , "đóng màn hình hồ sơ bệnh án");
 INSERT INTO     InputText (Id,Sample) Values(102  , "đóng hết màn hình");
 ==============================================================================================================================================
-
-
-
-
 

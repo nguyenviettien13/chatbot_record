@@ -10,28 +10,27 @@ import (
 )
 
 const (
-	PAGEACCESSTOKEN = ""
-	VERIFYTOKEN     = ""
+	PAGEACCESSTOKEN = "EAAXu4QafGd8BANrhhNs9KOuhdBMYpv8wdi0GyCaBt62fcvtZBYvgLdfsgVlk4m2p9P5h3M2Cxf80IU41P3YRUao0f80D88i8q8SoWaD6RxZA7C2fQlFOF6ZBn3ZAvZBw2vtcuBc2XhkUM5WZCrQW4zQtKa1cPoF4r6yPbTzVCqCMCcK1jEk0dJ"
+	VERIFYTOKEN     = "neitteiv1234"
 	PORT = 2102
 
 	DB_NAME="record_chatbot"
 	DB_USER="root"
 	DB_PASS="1"
-	MaxSample=102
+	MaxSample=3
 )
 
-var dbchan =make(chan *sql.DB,1)
+var db *sql.DB
 
 type Record struct {}
 
 
 func (r Record) HandlePostback(bot *fbbot.Bot, pbk *fbbot.Postback)  {
-	db := <- dbchan
 	switch pbk.Payload {
 	case "Yes":
 		stmtInsAudio , err := db.Prepare("UPDATE Outputs  SET State = ?  WHERE FbId = ? AND SampleId = ?")
 		if err != nil {
-			panic(err.Error()) // proper error handling instead of panic in your app
+			log.Println("error when create stmtInsAudio") // proper error handling instead of panic in your app
 		}
 
 		SampleId := 1 + GetStateOfUser(db,pbk.Sender.ID)
@@ -40,7 +39,7 @@ func (r Record) HandlePostback(bot *fbbot.Bot, pbk *fbbot.Postback)  {
 		//cap nhat trang thai cho user
 		stmtUpdateUserState , err := db.Prepare("UPDATE UserState SET LastSample = ? WHERE FbId = ? ")
 		if err != nil {
-			panic(err.Error()) // proper error handling instead of panic in your app
+			log.Println("error when create stmtUpdateUserState")
 		}
 		stmtUpdateUserState.Query(SampleId,pbk.Sender.ID)
 		//??? co nen dong statement o day khong?
@@ -73,12 +72,12 @@ func (r Record) HandlePostback(bot *fbbot.Bot, pbk *fbbot.Postback)  {
 	default:
 		log.Println("Switch case does not exist")
 	}
-	dbchan <- db
 }
 
 func main()  {
 	//processing database
-	db, err := sql.Open("mysql", DB_USER+":"+DB_PASS+"@/"+DB_NAME )//"user:password@/dbname"
+	var err error
+	db, err = sql.Open("mysql", DB_USER+":"+DB_PASS+"@/"+DB_NAME )//"user:password@/dbname"
 	fmt.Println("Opening connection")
 	if err != nil {
 		panic(err.Error()) // Just for example purpose. You should use proper error handling instead of panic
@@ -93,7 +92,6 @@ func main()  {
 		panic(err.Error()) // proper error handling instead of panic in your app
 	}
 	fmt.Println("checked ping database")
-	dbchan<-db
 	fmt.Println("added database channel")
 
 
@@ -107,7 +105,6 @@ func main()  {
 
 func ( record Record ) HandleMessage( bot *fbbot.Bot , msg *fbbot.Message ) {
 	//check whether is newUser
-	db := <- dbchan
 	//if arrived messeger is text and user is new
 	if IsNewUser( msg , db ) && !isAudioMessage( msg ){
 
@@ -123,14 +120,13 @@ func ( record Record ) HandleMessage( bot *fbbot.Bot , msg *fbbot.Message ) {
 		m2 := fbbot.NewTextMessage(start)
 		bot.Send(msg.Sender,m2)
 
-		stmtInsNewUser, err := db.Prepare("INSERT INTO UserState (Fbid,LastSample)VALUES( ?, ? )") // ? = placeholder
+		stmtInsNewUser, err := db.Prepare("INSERT INTO UserState ( Fbid,LastSample )VALUES( ?, ? )") // ? = placeholder
 		if err != nil {
-			panic(err.Error()) // proper error handling instead of panic in your app
+			log.Println("error when create stminsertNewUser")
 		}
-		defer stmtInsNewUser.Close() // Close the statement when we leave main() / the program terminates
 		_, err = stmtInsNewUser.Exec(string(msg.Sender.ID),0)
 		if err != nil {
-			panic(err.Error()) // proper error handling instead of panic in your app
+			log.Println("error when exec stminsertNewUser")
 		}
 
 		sample1 := GetSampleOfUser(db,msg.Sender.ID)
@@ -146,12 +142,27 @@ func ( record Record ) HandleMessage( bot *fbbot.Bot , msg *fbbot.Message ) {
 
 	}else if isAudioMessage(msg) {
 		//luu database
-		stmtInsAudio , err := db.Prepare("INSERT INTO Outputs (FbId,Gender,SampleId,State,NumberTime, UrlRecord, RecordTime)VALUES( ?, ? , ? , ?, ?, ?, ? )")
-		if err != nil {
-			panic(err.Error()) // proper error handling instead of panic in your app
+		us := GetStateOfUser(db,msg.Sender.ID)
+		if ! isExistOutput(msg.Sender.ID,us+1) {
+			stmtInsAudio , err := db.Prepare("INSERT INTO Outputs (FbId,Gender,SampleId,State, UrlRecord, RecordTime)VALUES( ?, ? , ? , ?, ?, ? )")
+			if err != nil {
+				log.Println("error when create stminsertAudio")
+			}
+			_ , err = stmtInsAudio.Query(msg.Sender.ID,msg.Sender.Gender(),us+1,false,msg.Audios[0].URL,time.Now())
+			if err !=nil {
+				log.Println("error when exec stminsertOutput")
+			}
+		} else {
+			stmtInsAudio , err := db.Prepare("UPDATE Outputs SET UrlRecord=? WHERE FbId= ? AND SampleId=?")
+			if err != nil {
+				log.Println("error when create stminsertAudio")
+			}
+			stmtInsAudio.Query(msg.Audios[0].URL, msg.Sender.ID,us+1)
+			_ , err = stmtInsAudio.Query(msg.Sender.ID,msg.Sender.Gender(),us+1,false,msg.Audios[0].URL,time.Now())
+			if err !=nil {
+				log.Println("error when exec stminsertOutput")
+			}
 		}
-		SampleId := 1 + GetStateOfUser(db,msg.Sender.ID)
-		stmtInsAudio.Query(msg.Sender.ID,msg.Sender.Gender(),SampleId,false,1,msg.Audios[0].URL,time.Now())
 		//send confirm messager
 		//confirmmessager := "ban co muon gui audio : y/n"
 		//m := fbbot.NewTextMessage(confirmmessager)
@@ -160,8 +171,8 @@ func ( record Record ) HandleMessage( bot *fbbot.Bot , msg *fbbot.Message ) {
 		pkb :=fbbot.NewButtonMessage()
 		pkb.Text = "Bạn muốn ghi âm lại hay ghi âm câu tiếp theo"
 		pkb.Noti ="REGULAR"
-		pkb.AddPostbackButton("Câu tiếp theo","Yes")
 		pkb.AddPostbackButton("Ghi âm lại","No")
+		pkb.AddPostbackButton("Câu tiếp theo","Yes")
 		bot.Send(msg.Sender,pkb)
 	}  else {
 		us := GetStateOfUser(db,msg.Sender.ID)
@@ -181,7 +192,6 @@ func ( record Record ) HandleMessage( bot *fbbot.Bot , msg *fbbot.Message ) {
 			bot.Send(msg.Sender,m4)
 		}
 	}
-	dbchan <- db
 }
 
 //in my opinion, a newUser is who nerver been sent Audio Messager
@@ -189,7 +199,7 @@ func IsNewUser(msg *fbbot.Message , db *sql.DB ) bool {
 	query := "SELECT * FROM UserState WHERE FbId="+msg.Sender.ID
 	rows, err := db.Query(query)
 	if err != nil {
-		panic(err.Error()) // proper error handling instead of panic in your app
+		log.Println("error when SELECT * FROM UserState WHERE FbId")
 	}
 	if rows.Next() {
 		return false
@@ -213,7 +223,7 @@ func GetSampleOfUser(db *sql.DB, FbId string) string {
 		query := "Select * from InputText where Id= ?"
 		rows, err := db.Query(query,id)
 		if err != nil {
-			panic(err.Error()) // proper error handling instead of panic in your app
+			log.Println("err when exec func GetSampleOfUser")
 		}
 		for rows.Next(){
 			rows.Scan(&id,&sample)
@@ -234,19 +244,27 @@ func GetStateOfUser(db *sql.DB ,FbId string) int {
 	query := "Select * from UserState where FbId = ? "
 	rows, err := db.Query(query,FbId)
 	if err != nil {
-		panic(err.Error()) // proper error handling instead of panic in your app
+		log.Println("err when exec func GetStateOfUser")
 	}
 	for rows.Next() {
 		// Scan the value to []byte
 		err = rows.Scan(&fbid, &lastsample,&lasttime)
 
 		if err != nil {
-			panic(err.Error()) // Just for example purpose. You should use proper error handling instead of panic
+			log.Println("err when scan to &lastsample")
 
 		}
 	}
 	return lastsample
 }
+func isExistOutput(FbId string, SampleId int) bool {
+	rows, err := db.Query("SELECT * FROM Outputs WHERE FbId=? AND  SampleId=?",FbId,SampleId)
 
+	if err != nil {
+		log.Println("err when exec func isExistOutput")
+	}
+	return  rows.Next()
+}
 //tai sao khi cho khoi tao bot o duoi phan database thi no lai khong chay?
 //tai sao cau lenh dbchannel<- db lai block ham main
+//gettime
