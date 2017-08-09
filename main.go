@@ -10,14 +10,14 @@ import (
 )
 
 const (
-	PAGEACCESSTOKEN = ""
-	VERIFYTOKEN     = ""
+	PAGEACCESSTOKEN = "EAAXu4QafGd8BAFt8oQqEwGRkN30Jsd7tokR5IvAdB5KWGQv1HlZC9WCsboosCM5mPwHEoo1giljkwzu4pJqu29xnvLVGqoGGvlmIZBfzHgnk8crHpPvHSTWJojcQras9b00TLJDzgF4tm5aZACl9lXDyPGFw5oW1qOBUxXdXZB7s5QcfFVkA"
+	VERIFYTOKEN     = "neitteiv1234"
 	PORT = 2102
 
 	DB_NAME="record_chatbot"
-	DB_USER=""
-	DB_PASS="1"
-	MaxSample=102
+	DB_USER="fti_record"
+	DB_PASS="i1D8QqlHFuhl"
+	MaxSample=300
 )
 
 var db *sql.DB
