@@ -4,7 +4,6 @@ import (
 	"github.com/michlabs/fbbot"
 	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
-	"time"
 	"fmt"
 	"log"
 )
@@ -15,9 +14,9 @@ const (
 	PORT = 2102
 
 	DB_NAME="record_chatbot"
-	DB_USER="fti_record"
-	DB_PASS="i1D8QqlHFuhl"
-	MaxSample=300
+	DB_USER="root"
+	DB_PASS="or64SUAnd31R"
+	MaxSample=540
 )
 
 var db *sql.DB
@@ -61,7 +60,8 @@ func (r Record) HandlePostback(bot *fbbot.Bot, pbk *fbbot.Postback)  {
 			bot.Send(pbk.Sender,m4)
 		}
 	case "No":
-		sample := GetSampleOfUser(db,pbk.Sender.ID)
+		sample := GetSampleOfUser( db , pbk.Sender.ID)
+		log.Println("get sample when NO postback",sample)
 		m := fbbot.NewTextMessage(sample)
 		bot.Send(pbk.Sender,m)
 		m4:=fbbot.NewTextMessage("....")
@@ -144,23 +144,24 @@ func ( record Record ) HandleMessage( bot *fbbot.Bot , msg *fbbot.Message ) {
 		//luu database
 		us := GetStateOfUser(db,msg.Sender.ID)
 		if ! isExistOutput(msg.Sender.ID,us+1) {
-			stmtInsAudio , err := db.Prepare("INSERT INTO Outputs (FbId,Gender,SampleId,State, UrlRecord, RecordTime)VALUES( ?, ? , ? , ?, ?, ? )")
+			stmtInsAudio , err := db.Prepare("INSERT INTO Outputs (FbId,Gender,SampleId,State, NumberTime, UrlRecord)VALUES(?, ? , ? , ?, ?, ? )")
 			if err != nil {
 				log.Println("error when create stminsertAudio")
 			}
-			_ , err = stmtInsAudio.Query(msg.Sender.ID,msg.Sender.Gender(),us+1,false,msg.Audios[0].URL,time.Now())
+			_ , err = stmtInsAudio.Query(msg.Sender.ID,msg.Sender.Gender(),us+1,false,1, msg.Audios[0].URL)
 			if err !=nil {
-				log.Println("error when exec stminsertOutput")
+				log.Println("error when prepare stminsertOutput insert")
 			}
 		} else {
 			stmtInsAudio , err := db.Prepare("UPDATE Outputs SET UrlRecord=? WHERE FbId= ? AND SampleId=?")
 			if err != nil {
 				log.Println("error when create stminsertAudio")
 			}
-			stmtInsAudio.Query(msg.Audios[0].URL, msg.Sender.ID,us+1)
-			_ , err = stmtInsAudio.Query(msg.Sender.ID,msg.Sender.Gender(),us+1,false,msg.Audios[0].URL,time.Now())
-			if err !=nil {
-				log.Println("error when exec stminsertOutput")
+			id := us+1
+			_ , err1 := stmtInsAudio.Query(msg.Audios[0].URL, msg.Sender.ID,string(id))
+
+			if err1 !=nil {
+				log.Println("error when exec stminsertOutput update")
 			}
 		}
 		//send confirm messager
